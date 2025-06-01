@@ -1,0 +1,74 @@
+﻿# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data files
+*.npy
+*.npz
+*.csv
+*.tsv
+*.parquet
+*.xlsx
+*.xls
+*.xlsm
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.json
+*.jsonl
+*.xml
+*.db
+*.sqlite
+*.sql
+
+# Compressed files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.bz2
+*.jpg
+*.jpeg
+*.png
+
+# Model files
+*.pth
+*.pt
+*.ckpt
+*.pb
+*.onnx
+*.h5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Git
+.git/
+
+# Logs
+*.log
