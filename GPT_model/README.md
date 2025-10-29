@@ -62,3 +62,4 @@ print(translation)  # "I have breakfast"
 - 배치 크기: 32
 - 에포크: 100
 - 드롭아웃: 0.1
+

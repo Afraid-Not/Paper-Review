@@ -259,12 +259,9 @@ class BertModel(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        
         self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
-        
-        # 가중치 초기화
         self.apply(self._init_weights)
     
     def _init_weights(self, module):
