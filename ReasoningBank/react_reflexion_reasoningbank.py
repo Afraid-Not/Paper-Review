@@ -70,8 +70,7 @@ class ReasoningBank:
     def search(self, query: str, context: Optional[str] = None) -> List[Dict[str, Any]]:
         """지식 베이스에서 검색"""
         results = []
-        
-        # Bio 검색
+
         if not self.bio_db.empty:
             bio_matches = self.bio_db[
                 self.bio_db['title'].str.contains(query, case=False, na=False) |
@@ -82,8 +81,6 @@ class ReasoningBank:
                     'source': 'bio',
                     'data': row.to_dict()
                 })
-        
-        # Corpus 검색
         if not self.corpus_db.empty:
             corpus_matches = self.corpus_db[
                 self.corpus_db['title'].str.contains(query, case=False, na=False) |
@@ -94,8 +91,6 @@ class ReasoningBank:
                     'source': 'corpus',
                     'data': row.to_dict()
                 })
-        
-        # World 검색
         if not self.world_db.empty:
             world_matches = self.world_db[
                 self.world_db['title'].str.contains(query, case=False, na=False)
@@ -105,8 +100,6 @@ class ReasoningBank:
                     'source': 'world',
                     'data': row.to_dict()
                 })
-        
-        # 메모리에 저장
         memory = BankMemory(
             query=query,
             retrieved_knowledge=results,
@@ -291,9 +284,11 @@ class ReActAgent:
                     data = r.get('data', {})
                     source = r.get('source', '')
                     if source == 'bio':
-                        detail_str += f"\n[{source}] {data.get('title', '')}: {data.get('bio', '')} (출생지: {data.get('born_in_city', '')}, 출생년도: {data.get('born_year', '')})"
+                        detail_str += f"\n[{source}] {data.get('title', '')}: {data.get('bio', '')}\
+                            (출생지: {data.get('born_in_city', '')}, 출생년도: {data.get('born_year', '')})"
                     elif source == 'corpus':
-                        detail_str += f"\n[{source}] {data.get('title', '')}: {data.get('summary', '')} (국가: {data.get('country', '')}, 인구: {data.get('population_k', '')}천 명)"
+                        detail_str += f"\n[{source}] {data.get('title', '')}: {data.get('summary', '')}\
+                            (국가: {data.get('country', '')}, 인구: {data.get('population_k', '')}천 명)"
                     elif source == 'world':
                         detail_str += f"\n[{source}] {data.get('title', '')}: 수도 {data.get('capital', '')}, 통화 {data.get('currency', '')}"
                 

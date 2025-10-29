@@ -1,5 +1,5 @@
 """
-HotpotQA 데이터셋 + LLM 통합 버전 (Llama 사용)
+HotpotQA 데이터셋 + LLM 통합 버전 (OpenAI 사용)
 실제 LLM을 사용하여 ReAct + Reflexion + ReasoningBank 테스트
 """
 
@@ -8,182 +8,50 @@ import json
 from typing import List, Dict, Any, Optional
 from datasets import load_dataset
 
-# Llama 모델 라이브러리
-try:
-    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-    import torch
-    HAS_TRANSFORMERS = True
-except ImportError:
-    HAS_TRANSFORMERS = False
-    print("경고: transformers 라이브러리가 없습니다. pip install transformers torch 로 설치하세요.")
-
-# OpenAI (옵션, 폴백용)
+# OpenAI 라이브러리
 try:
     import openai
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
+    print("경고: openai 라이브러리가 없습니다. pip install openai 로 설치하세요.")
 
 
 class LLMInterface:
-    """LLM 통합 인터페이스 (Llama 모델 지원)"""
+    """LLM 통합 인터페이스 (OpenAI 지원)"""
     
     def __init__(self, 
-                 provider: str = "llama",
-                 model_name: str = "meta-llama/Llama-2-7b-chat-hf",  # HuggingFace 모델명
-                 device: str = "auto",
-                 load_in_8bit: bool = False):
+                 provider: str = "openai",
+                 model_name: str = "gpt-3.5-turbo",
+                 api_key: Optional[str] = None):
         self.provider = provider
         self.model_name = model_name
-        self.device = device
-        self.load_in_8bit = load_in_8bit
-        self.tokenizer = None
-        self.model = None
-        self.pipeline = None
         
-        if provider == "llama" or provider == "local":
-            if not HAS_TRANSFORMERS:
-                raise ImportError("transformers 라이브러리가 필요합니다. pip install transformers torch")
+        if provider == "openai":
+            if not HAS_OPENAI:
+                raise ImportError("openai 라이브러리가 필요합니다. pip install openai 로 설치하세요.")
             
-            self._load_llama_model()
-        elif provider == "openai":
-            if HAS_OPENAI:
+            # OpenAI SDK 1.0+ 방식
+            if api_key:
+                self.client = openai.OpenAI(api_key=api_key)
+            else:
+                # 환경변수에서 가져오기
                 api_key = os.getenv("OPENAI_API_KEY")
                 if api_key:
-                    openai.api_key = api_key
+                    self.client = openai.OpenAI(api_key=api_key)
                 else:
-                    print("경고: OPENAI_API_KEY가 설정되지 않았습니다.")
-            else:
-                raise ImportError("openai 라이브러리가 필요합니다.")
+                    raise ValueError("OPENAI_API_KEY를 설정하거나 api_key 인자를 제공해야 합니다.")
         else:
-            raise ValueError(f"지원하지 않는 provider: {provider}")
+            raise ValueError(f"지원하지 않는 provider: {provider}. 'openai'만 지원합니다.")
     
-    def _load_llama_model(self):
-        """Llama 모델 로드"""
-        print(f"Llama 모델 로딩 중: {self.model_name}")
-        print("처음 실행 시 모델 다운로드로 시간이 걸릴 수 있습니다...")
-        
-        try:
-            # device 자동 설정
-            if self.device == "auto":
-                self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            
-            print(f"사용 중인 디바이스: {self.device}")
-            
-            # 토크나이저 로드
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            
-            # 모델 로드 옵션
-            model_kwargs = {}
-            if self.load_in_8bit and self.device == "cuda":
-                try:
-                    from transformers import BitsAndBytesConfig
-                    model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
-                except:
-                    print("경고: 8-bit 양자화를 사용할 수 없습니다. 전체 모델을 로드합니다.")
-            
-            # 모델 로드
-            use_device_map = self.device == "cuda"
-            
-            if use_device_map:
-                # CUDA 사용 시 device_map="auto"로 설정 (accelerate 사용)
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_name,
-                    torch_dtype=torch.float16,
-                    device_map="auto",
-                    **model_kwargs
-                )
-                # device_map을 사용하면 모델이 이미 적절한 디바이스에 배치됨
-                pipeline_device = None  # device_map 사용 시 device 인자 없이
-            else:
-                # CPU 사용 시 직접 로드
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_name,
-                    torch_dtype=torch.float32,
-                    device_map=None,
-                    **model_kwargs
-                )
-                self.model = self.model.to(self.device)
-                pipeline_device = -1  # CPU는 -1
-            
-            # Pipeline 생성
-            pipeline_kwargs = {
-                "model": self.model,
-                "tokenizer": self.tokenizer,
-                "max_new_tokens": 200,
-                "temperature": 0.7,
-                "do_sample": True
-            }
-            
-            # device_map 사용 시 device 인자 제거
-            if pipeline_device is not None:
-                pipeline_kwargs["device"] = pipeline_device
-            
-            self.pipeline = pipeline("text-generation", **pipeline_kwargs)
-            
-            print("✅ 모델 로드 완료!")
-            
-        except Exception as e:
-            print(f"모델 로드 실패: {str(e)}")
-            print("\n대안:")
-            print("1. 더 작은 모델 사용: 'microsoft/DialoGPT-small'")
-            print("2. 메모리 부족 시: load_in_8bit=True 옵션 사용")
-            print("3. CPU 사용 시: 더 작은 모델 권장")
-            raise
     
     def generate(self, prompt: str, max_tokens: int = 200) -> str:
         """프롬프트를 받아 LLM으로 생성"""
-        if self.provider in ["llama", "local"]:
+        if self.provider == "openai":
             try:
-                # Llama 모델용 프롬프트 포맷
-                if "Llama-2" in self.model_name or "llama-2" in self.model_name.lower():
-                    formatted_prompt = f"[INST] {prompt} [/INST]"
-                else:
-                    formatted_prompt = prompt
-                
-                # Pipeline 사용
-                if self.pipeline:
-                    result = self.pipeline(
-                        formatted_prompt,
-                        max_new_tokens=min(max_tokens, 200),
-                        num_return_sequences=1,
-                        truncation=True
-                    )
-                    generated_text = result[0]["generated_text"]
-                    # 프롬프트 부분 제거
-                    if formatted_prompt in generated_text:
-                        response = generated_text.split(formatted_prompt)[-1].strip()
-                    else:
-                        response = generated_text.strip()
-                    return response
-                else:
-                    # 직접 토크나이징
-                    inputs = self.tokenizer.encode(formatted_prompt, return_tensors="pt")
-                    if self.device == "cuda":
-                        inputs = inputs.to(self.device)
-                    
-                    with torch.no_grad():
-                        outputs = self.model.generate(
-                            inputs,
-                            max_new_tokens=min(max_tokens, 200),
-                            temperature=0.7,
-                            do_sample=True,
-                            pad_token_id=self.tokenizer.eos_token_id
-                        )
-                    
-                    response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-                    # 프롬프트 부분 제거
-                    if formatted_prompt in response:
-                        response = response.split(formatted_prompt)[-1].strip()
-                    return response
-                    
-            except Exception as e:
-                return f"[LLM 에러: {str(e)}]"
-        
-        elif self.provider == "openai":
-            try:
-                response = openai.ChatCompletion.create(
-                    model=self.model_name if self.model_name else "gpt-3.5-turbo",
+                # OpenAI SDK 1.0+ 방식
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant that reasons step by step."},
                         {"role": "user", "content": prompt}
@@ -269,60 +137,73 @@ class HotpotQAReasoningBankWithLLM:
         if not self.loaded:
             return []
         
-        if self.llm is None:
-            # LLM 없으면 키워드 매칭으로 폴백
-            return self._keyword_search(query)
+        # 먼저 키워드 검색으로 후보 찾기 (빠른 필터링)
+        keyword_results = self._keyword_search(query)
         
-        # LLM으로 검색 쿼리 개선
-        improved_query = self.llm.generate(
-            f"다음 질문의 핵심 키워드를 추출하세요: {query}\n키워드:",
-            max_tokens=50
-        )
+        if self.llm is None or len(keyword_results) == 0:
+            # LLM 없으면 키워드 매칭 결과 사용
+            return keyword_results[:5]
         
-        # 의미적으로 유사한 질문 찾기
+        # 키워드로 매칭된 결과가 있으면 그 중에서 더 정확한 것 선택
+        if keyword_results:
+            # 키워드 매칭된 결과가 있으면 우선 사용
+            return keyword_results[:5]
+        
+        # 키워드 매칭 실패 시 LLM으로 검색 시도 (느림)
         results = []
         query_lower = query.lower()
+        query_words = set(query_lower.split())
         
         for qa_pair in self.qa_pairs:
             question = qa_pair.get("question", "").lower()
+            question_words = set(question.split())
             
-            # LLM으로 관련성 판단
-            relevance_prompt = f"""
-다음 두 질문이 관련이 있는지 판단하세요.
-
-질문1: {query}
-질문2: {qa_pair.get('question', '')}
-
-관련성이 있으면 'yes', 없으면 'no'만 답변하세요:"""
-            
-            relevance = self.llm.generate(relevance_prompt, max_tokens=10).lower()
-            
-            if 'yes' in relevance:
+            # 단어 겹침이 있으면 관련성이 높음
+            overlap = len(query_words & question_words)
+            if overlap > 0:
                 results.append({
                     "source": "hotpotqa",
                     "data": qa_pair,
-                    "relevance_score": 1.0
+                    "relevance_score": overlap / max(len(query_words), 1)
                 })
+        
+        # 관련성 순으로 정렬
+        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        
+        # LLM으로 더 정확한 필터링 (옵션, 느릴 수 있음)
+        # 너무 많은 후보가 있으면 LLM 사용 안 함
+        if len(results) > 10:
+            return results[:5]
         
         return results[:5]
     
     def _keyword_search(self, query: str) -> List[Dict[str, Any]]:
-        """키워드 기반 검색 (폴백)"""
+        """키워드 기반 검색 (개선된 버전)"""
         results = []
-        query_lower = query.lower()
+        query_lower = query.lower().strip()
+        query_words = set(query_lower.split())
         
+        # 대소문자 무시하고 검색
         for qa_pair in self.qa_pairs:
-            question = qa_pair.get("question", "").lower()
-            answer = qa_pair.get("answer", "").lower()
+            question = qa_pair.get("question", "").lower().strip()
+            answer = qa_pair.get("answer", "").lower().strip()
             
-            query_words = set(query_lower.split())
+            # 질문에서 키워드 검색
             question_words = set(question.split())
+            overlap = query_words & question_words
             
-            if query_words & question_words:
+            # 최소 1개 이상의 키워드가 일치하면 관련성 있음
+            if len(overlap) > 0:
+                # 관련성 점수 계산
+                relevance_score = len(overlap) / max(len(query_words), 1)
                 results.append({
                     "source": "hotpotqa",
-                    "data": qa_pair
+                    "data": qa_pair,
+                    "relevance_score": relevance_score
                 })
+        
+        # 관련성 순으로 정렬
+        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
         
         return results[:5]
     
@@ -396,42 +277,42 @@ class ReActWithLLM:
         return step_record
 
 
-def test_with_llm_example(model_name: Optional[str] = None, use_8bit: bool = False):
-    """Llama LLM을 사용한 테스트 예시"""
+def test_with_llm_example(model_name: Optional[str] = None):
+    """OpenAI LLM을 사용한 테스트 예시"""
     print("="*80)
-    print("Llama를 사용한 HotpotQA 테스트")
+    print("OpenAI를 사용한 HotpotQA 테스트")
     print("="*80)
     
-    # 기본 모델명 (더 작은 모델부터 시도)
-    default_models = [
-        "microsoft/DialoGPT-medium",  # 작고 빠름 (약 350M)
-        "meta-llama/Llama-2-7b-chat-hf",  # Llama 2 (약 7B)
-        "meta-llama/Llama-2-13b-chat-hf",  # Llama 2 (약 13B)
-    ]
+    # API 키 확인
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("\n❌ OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+        print("\n설정 방법:")
+        print("1. 환경변수 설정:")
+        print("   Windows: set OPENAI_API_KEY=your-api-key")
+        print("   Linux/Mac: export OPENAI_API_KEY=your-api-key")
+        print("2. 또는 .env 파일 사용")
+        return None
     
-    model_to_use = model_name or default_models[0]  # 기본값: 작은 모델
+    # 기본 모델명
+    model_to_use = model_name or "gpt-3.5-turbo"
     
     # LLM 초기화
     try:
-        print(f"\n모델 로드 시도: {model_to_use}")
-        print("더 큰 모델을 사용하려면 --model 옵션으로 변경하세요.")
+        print(f"\n모델 사용: {model_to_use}")
         
         llm = LLMInterface(
-            provider="llama",
+            provider="openai",
             model_name=model_to_use,
-            device="auto",
-            load_in_8bit=use_8bit
+            api_key=api_key
         )
-        print("✅ Llama 모델 초기화 완료!")
+        print("✅ OpenAI API 초기화 완료!")
     except Exception as e:
-        print(f"\n❌ 모델 로드 실패: {str(e)}")
+        print(f"\n❌ 초기화 실패: {str(e)}")
         print("\n해결 방법:")
-        print("1. 더 작은 모델 시도:")
-        print("   python hotpot_qa_with_llm.py --model microsoft/DialoGPT-small")
-        print("2. 8-bit 양자화 사용 (GPU 메모리 절약):")
-        print("   python hotpot_qa_with_llm.py --use-8bit")
-        print("3. LLM 없이 테스트:")
-        print("   python hotpot_qa_integration.py")
+        print("1. OPENAI_API_KEY 환경변수 확인")
+        print("2. openai 라이브러리 설치: pip install openai")
+        print("3. LLM 없이 테스트: python hotpot_qa_integration.py")
         return None
     
     # Knowledge Base 초기화
@@ -472,36 +353,70 @@ def test_with_llm_example(model_name: Optional[str] = None, use_8bit: bool = Fal
         print(f"\n정답 비교:")
         print(f"  생성된 답변: {step3['observation']}")
         print(f"  실제 정답: {correct_answer}")
+        
+        # 의미 기반 정답 비교
+        generated_text = step3['observation'].lower()
+        correct_text = correct_answer.lower()
+        
+        # "답변:" 등의 프리픽스 제거
+        if "답변:" in generated_text:
+            generated_text = generated_text.split("답변:")[-1].strip()
+        
+        # 간단한 매칭 체크
+        is_correct = False
+        
+        # 직접 매칭
+        if correct_text in generated_text or generated_text in correct_text:
+            is_correct = True
+        # yes/no 형식 체크
+        elif (correct_text in ["yes", "no"] and 
+              (correct_text in generated_text or 
+               ("네" in generated_text and correct_text == "yes") or
+               ("같은" in generated_text and correct_text == "yes") or
+               ("아니" in generated_text and correct_text == "no"))):
+            is_correct = True
+        
+        if is_correct:
+            print(f"  ✅ 정답일 가능성이 높습니다 (의미가 일치)")
+        else:
+            print(f"  ⚠️  정답 형식이 다를 수 있습니다 (직접 확인 필요)")
 
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="HotpotQA 테스트 (Llama 사용)")
+    parser = argparse.ArgumentParser(description="HotpotQA 테스트 (OpenAI 사용)")
     parser.add_argument(
         "--model",
         type=str,
         default=None,
-        help="사용할 모델명 (기본: microsoft/DialoGPT-medium)"
+        help="사용할 OpenAI 모델명 (기본: gpt-3.5-turbo)"
     )
     parser.add_argument(
-        "--use-8bit",
-        action="store_true",
-        help="8-bit 양자화 사용 (GPU 메모리 절약)"
+        "--api-key",
+        type=str,
+        default=None,
+        help="OpenAI API 키 (기본: OPENAI_API_KEY 환경변수 사용)"
     )
     
     args = parser.parse_args()
     
     print("="*80)
-    print("Llama 모델을 사용하는 HotpotQA 테스트")
+    print("OpenAI를 사용하는 HotpotQA 테스트")
     print("="*80)
     print("\n필요한 라이브러리:")
-    print("  pip install transformers torch accelerate")
-    print("\n권장 모델 (작은 것부터):")
-    print("  1. microsoft/DialoGPT-medium (약 350M) - 빠름, 기본값")
-    print("  2. meta-llama/Llama-2-7b-chat-hf (7B) - 더 정확, GPU 필요")
-    print("  3. meta-llama/Llama-2-13b-chat-hf (13B) - 매우 정확, 강력한 GPU 필요")
+    print("  pip install openai")
+    print("\n필요한 설정:")
+    print("  OPENAI_API_KEY 환경변수 설정")
+    print("\n사용 가능한 모델:")
+    print("  1. gpt-3.5-turbo (기본값) - 빠르고 저렴")
+    print("  2. gpt-4 - 더 정확하지만 비쌈")
+    print("  3. gpt-4-turbo-preview - 최신 GPT-4")
     print("="*80)
     
-    test_with_llm_example(model_name=args.model, use_8bit=args.use_8bit)
+    # API 키 설정
+    if args.api_key:
+        os.environ["OPENAI_API_KEY"] = args.api_key
+    
+    test_with_llm_example(model_name=args.model)
 
