@@ -1,0 +1,9 @@
+# Llama 모델을 사용하기 위한 필수 라이브러리
+transformers>=4.30.0
+torch>=2.0.0
+accelerate>=0.20.0
+datasets>=2.14.0
+
+# 선택사항: 8-bit 양자화 (GPU 메모리 절약)
+# bitsandbytes>=0.39.0  # CUDA 사용 시에만 필요
+
