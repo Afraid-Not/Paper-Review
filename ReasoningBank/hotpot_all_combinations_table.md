@@ -69,11 +69,9 @@
 | 조합 | 성공 | 스텝 수 | 검색 | Reflection | 답변 요약 |
 |------|------|---------|------|------------|----------|
 | ReAct만 | ❌ | 2 | 0 | 0 | 답변: 1. "Big Stone Gap"의 감독을 확인해야 합니다.
-2. "Big Ston... |
 | Reflexion만 | ❌ | 1 | 0 | 3 | 질문은 영화 "Big Stone Gap"의 로맨틱 코미디 감독이 뉴욕 시 어디에 기반을 두... |
 | ReasoningBank만 | ✅ | 1 | 5 | 0 | The director of the romantic comedy "Big Stone Gap... |
 | ReAct + Reflexion | ❌ | 2 | 0 | 2 | 답변: 1. 먼저, 영화 "Big Stone Gap"의 감독을 확인해야 합니다.
-2. "B... |
 | ReAct + ReasoningBank | ✅ | 3 | 1 | 0 | 답변: The director of the romantic comedy "Big Stone... |
 | Reflexion + ReasoningBank | ✅ | 2 | 5 | 2 | The director of the romantic comedy "Big Stone Gap... |
 | ReAct + Reflexion + ReasoningBank | ✅ | 3 | 1 | 2 | 답변: The director of the romantic comedy "Big Stone... |
