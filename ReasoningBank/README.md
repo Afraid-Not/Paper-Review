@@ -107,6 +107,7 @@ for task in tasks:
 ## 지원하는 액션
 
 ### 1. `search`
+
 지식 베이스에서 정보 검색
 
 ```python
@@ -117,6 +118,7 @@ for task in tasks:
 ```
 
 ### 2. `update`
+
 지식 베이스 업데이트
 
 ```python
@@ -132,6 +134,7 @@ for task in tasks:
 ```
 
 ### 3. `reflect`
+
 과거 경험 확인 (Reflexion)
 
 ```python
@@ -142,6 +145,7 @@ for task in tasks:
 ```
 
 ### 4. `finish`
+
 작업 완료
 
 ```python
@@ -156,6 +160,7 @@ for task in tasks:
 각 에피소드마다 `logs/{episode_num}/` 폴더에 다음 파일들이 저장됩니다:
 
 ### 1. `react_reasoning.json`
+
 ReAct의 reasoning 과정 전체 기록
 
 ```json
@@ -176,6 +181,7 @@ ReAct의 reasoning 과정 전체 기록
 ```
 
 ### 2. `reflexion_memory.json`
+
 Reflexion의 모든 메모리 기록
 
 ```json
@@ -196,6 +202,7 @@ Reflexion의 모든 메모리 기록
 ```
 
 ### 3. `reasoning_bank_memory.json`
+
 ReasoningBank의 검색 및 업데이트 히스토리
 
 ```json
@@ -214,6 +221,7 @@ ReasoningBank의 검색 및 업데이트 히스토리
 ```
 
 ### 4. `episode_summary.json`
+
 에피소드 요약
 
 ```json
@@ -246,29 +254,31 @@ python example_usage.py
 ## 데이터 형식
 
 ### miniworld_bio.csv
+
 사람의 생물 정보
 
-| title | type | born_in_city | born_year | bio |
-|-------|------|--------------|-----------|-----|
-| Liam Brook | person | Seoria | 1991 | ... |
+| title      | type   | born_in_city | born_year | bio |
+| ---------- | ------ | ------------ | --------- | --- |
+| Liam Brook | person | Seoria       | 1991      | ... |
 
 ### miniworld_corpus.csv
+
 도시 정보
 
-| title | type | country | summary | population_k |
-|-------|------|---------|---------|--------------|
-| Seoria | city | Norland | ... | 209 |
+| title  | type | country | summary | population_k |
+| ------ | ---- | ------- | ------- | ------------ |
+| Seoria | city | Norland | ...     | 209          |
 
 ### miniworld.csv
+
 국가 정보
 
-| title | type | capital | currency |
-|-------|------|---------|----------|
-| Norland | country | Hadria | NOR |
+| title   | type    | capital | currency |
+| ------- | ------- | ------- | -------- |
+| Norland | country | Hadria  | NOR      |
 
 ## 주의사항
 
 - 각 에피소드는 순차적으로 실행되며, 이전 에피소드의 Reflexion 메모리가 다음 에피소드에 영향을 줍니다.
 - 지식 베이스 업데이트는 현재 세션에만 유효하며, CSV 파일 자체는 수정하지 않습니다.
 - 로그 폴더는 자동으로 생성되며, 기존 폴더가 있으면 덮어씁니다.
-
